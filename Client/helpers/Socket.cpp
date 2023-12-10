@@ -54,14 +54,14 @@ int Socket::send(const char* msg, int len)
 
 int Socket::sendStr(const std::string& str)
 {
-    std::string msg = "TXT " + str;
+    std::string msg = str;
     return send(msg.c_str(), msg.length());
 }
 
 int Socket::sendFile(const std::string& path) {
     std::string msg = "";
 
-    msg += "IMG ";
+    msg += "FL ";
     msg += std::filesystem::path(path).filename().string() + " ";
     msg += getFileStr(path);
 

@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <mutex>
 #include "AppMonitor.h"
 #include "helpers/Process.h"
 #include "../helpers/UtilString.h"
@@ -10,6 +11,7 @@
 static Process sServer;
 static Process sReserveServer;
 static std::string sPort = "0";
+static std::mutex stateFileMutex;
 bool flag = true;
 
 bool Monitor::init()
@@ -39,25 +41,36 @@ bool Monitor::initReserveServer() {
 bool Monitor::check(std::chrono::system_clock::time_point start)
 {
     std::string heartBeatFilePath = std::string("./resources/ALIVE" + sServer.pid());
+    std::string stateFilePath = "resources\\STATE";
 
     bool isGotBeat = fileExists(heartBeatFilePath);
 
     /* Проверка */
-
+    
     auto currentTimeAfterDelay = std::chrono::system_clock::now();
     std::time_t endTime = std::chrono::system_clock::to_time_t(currentTimeAfterDelay);
     std::chrono::duration<double> elapsedSeconds = currentTimeAfterDelay - start;
 
-    if (elapsedSeconds.count() > 100 && flag) {
+    if (elapsedSeconds.count() > 30 && flag) {
         sServer.terminate();
         flag = false;
     }
+    
     /* Завершение проверки */
 
     if (isGotBeat) {
         auto now = std::chrono::system_clock::now();
         auto now_c = std::chrono::system_clock::to_time_t(now);
         fileAppend("resources\\STATUS", "pid:" + sServer.pid() + " alive - " + std::ctime(&now_c) + "\n");
+
+        std::lock_guard<std::mutex> lock(stateFileMutex);
+
+        std::string mainServerState = getFileStr(stateFilePath);
+        std::string reserveServerState = getFileStr("resources\\STATE_Reserve");
+
+        if (mainServerState != reserveServerState) {
+            writeFileStr("resources\\STATE_Reserve", mainServerState.c_str(), mainServerState.size());
+        }
     }
 
     if (!isGotBeat || !sServer.wait(3000)) {
@@ -78,6 +91,8 @@ bool Monitor::activateReserveServer()
 void Monitor::resetReserveServer()
 {
     activateReserveServer();
+    std::filesystem::remove("./resources/STATE");
+    std::rename("./resources/STATE_Reserve", "./resources/STATE");
     sServer = sReserveServer;
     initReserveServer();
 }
@@ -86,7 +101,7 @@ void Monitor::deleteResource() {
     std::string directoryPath = "./resources";
     for (const auto& file : std::filesystem::directory_iterator(directoryPath)) {
         if (std::filesystem::is_regular_file(file)) {
-            if (file.path().filename().string() != "STATE" && file.path().filename().string() != "STATUS") {
+            if (file.path().filename().string() != ("STATE") && file.path().filename().string() != "STATUS") {
                 std::filesystem::remove(file.path());
             }
         }
