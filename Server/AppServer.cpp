@@ -7,8 +7,6 @@
 #include <iostream>
 #include <mutex>
 
-static std::mutex stateFileMutex;
-
 bool Server::init(int port)
 {
     if (!m_socket.init(1000) || !m_socket.listen(port))
@@ -31,6 +29,12 @@ bool Server::init(int port)
     return true;
 }
 
+void Server::updateViewers() {
+    for (auto sub : m_subscribers) {
+        sub->sendStr(m_data.back());
+    }
+}
+
 void Server::run()
 {
     while (1)
@@ -47,7 +51,6 @@ void Server::run()
         const std::vector<std::string>& tokens = split(data, " ");
         if (tokens.size() >= 2 && tokens[0] == "GET") // this is browser's request
         {
-            // convert URL to file system path, e.g. request to img/1.png resource becomes request to .\img\1.png file in Server's directory tree
             const std::string& filename = join(split(tokens[1], "/"), "\\");
             if (filename == "\\")
             { // main entry point (e.g. http://localhost:12345/)
@@ -97,14 +100,25 @@ void Server::run()
 
             m_data.push_back(name);
 
-            std::lock_guard<std::mutex> lock(stateFileMutex);
             fileAppend(stateFileName, m_data.back() + "\n");
+            updateViewers();
+        }
+        else if (tokens.size() == 1 && tokens[0] == "SUBSCRIBE") // this is Viewer's request who wants to subscribe to notifications
+        {
+            m_subscribers.push_back(client); // subscribed
+
+            std::string message = "";
+            for (int i = 0; i < m_data.size() - 1; i++) {
+                message += m_data[i] + '\n';
+            }
+            message += m_data[m_data.size() - 1];
+            client->sendStr(message);
         }
         else {
             m_data.push_back(data);
-
-            std::lock_guard<std::mutex> lock(stateFileMutex);
+            
             fileAppend(stateFileName, m_data.back() + "\n");
+            updateViewers();
         }
     }
 }

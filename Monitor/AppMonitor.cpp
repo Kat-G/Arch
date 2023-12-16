@@ -46,7 +46,7 @@ bool Monitor::check(std::chrono::system_clock::time_point start)
     bool isGotBeat = fileExists(heartBeatFilePath);
 
     /* Проверка */
-    
+    /*
     auto currentTimeAfterDelay = std::chrono::system_clock::now();
     std::time_t endTime = std::chrono::system_clock::to_time_t(currentTimeAfterDelay);
     std::chrono::duration<double> elapsedSeconds = currentTimeAfterDelay - start;
@@ -55,15 +55,13 @@ bool Monitor::check(std::chrono::system_clock::time_point start)
         sServer.terminate();
         flag = false;
     }
-    
+    */
     /* Завершение проверки */
 
     if (isGotBeat) {
         auto now = std::chrono::system_clock::now();
         auto now_c = std::chrono::system_clock::to_time_t(now);
         fileAppend("resources\\STATUS", "pid:" + sServer.pid() + " alive - " + std::ctime(&now_c) + "\n");
-
-        std::lock_guard<std::mutex> lock(stateFileMutex);
 
         std::string mainServerState = getFileStr(stateFilePath);
         std::string reserveServerState = getFileStr("resources\\STATE_Reserve");
